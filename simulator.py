@@ -107,7 +107,7 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
             if pv_excess > 1e-6:
                 space = (E_bess_kWh * bess_factor * cfg.soc_max_frac) - soc
                 needed_input_to_fill = space / cfg.charge_ef if cfg.charge_ef > 0 else 0.0
-                can_charge = min(pv_excess, hourly_charging_limit, needed_input_to_fill)
+                can_charge = min(pv_excess, hourly_charging_limit/cfg.charge_ef, needed_input_to_fill)
                 soc += can_charge * cfg.charge_ef
                 losses_year += pv_excess - can_charge
 
@@ -129,8 +129,8 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 gen_hours_year += 1
 
 
-            if y==2 and h < 24:
-                print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
+            #if y==1 and h < 24:
+            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
 
 
         soc_end = soc
@@ -174,10 +174,23 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         for y, vals in PV_BESS_GEN_opex_by_year.items()
     }
     gross_savings = {y: round(float(v), 2) for y, v in gross_savings.items()}
+    fuel_savings_by_year = {y: round(float(v), 2) for y, v in fuel_savings_by_year.items()}
 
-    # --- NPV final ---
+    # --- NPV y Payback (descontado) ---
     npv = -capex + sum(net_savings_by_year.values())
-    npv = round(float(npv), 2)  # también redondeamos el NPV
+    npv = round(float(npv), 2)
+
+    cumulative = 0.0
+    payback_year = None
+    for y in range(1, cfg.N_years + 1):
+        prev_cum = cumulative
+        annual = net_savings_by_year[y]
+        cumulative += annual
+        if cumulative >= capex and annual > 0:
+            remaining = capex - prev_cum
+            frac = min(max(remaining / annual, 0.0), 1.0)
+            payback_year = y - 1 + frac
+            break
 
     results = {
         'capex': round(float(capex), 2),
@@ -191,7 +204,9 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         'consumo_desde_bess': consumo_desde_bess,
         'generación': generación_por_año,
         'horas_generador_on': gen_hours,
-        'gross_savings': gross_savings
+        'gross_savings': gross_savings,
+        'fuel_savings_by_year': fuel_savings_by_year,
+        'payback_year': payback_year
     }
 
 

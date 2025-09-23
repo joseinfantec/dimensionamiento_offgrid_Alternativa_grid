@@ -9,7 +9,7 @@ def evaluate_grid_point(args):
     PV, E, irr, load, cfg = args
     res = simulate_operation(PV, E, irr, load, cfg)
     return (PV, E, res['npv'], res['feasible'], res['capex'], res['assets_opex_by_year'],
-            res['fuel_by_year'], res['soc_end_by_year'], res['losses_by_year'])
+            res['fuel_by_year'], res['soc_end_by_year'], res['losses_by_year'], res.get('payback_year'))
 
 def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range=(0,500), nPV=21, nE=21, parallel=True, nprocs=4, refine_steps=2, refine_factor=0.25):
     PV_min, PV_max = PV_range
@@ -30,7 +30,7 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
 
     df = pd.DataFrame(results, columns=['PV_kWp', 'E_bess_kWh', 'npv', 'Feasible',
                                         'CAPEX', 'Assets_OPEX_by_year', 'Fuel_by_year',
-                                        'SOC_end_by_year', 'Losses_by_year'])
+                                        'SOC_end_by_year', 'Losses_by_year', 'Payback_yr'])
     df_factible = df[df['Feasible'] == True]
     best = None
     if not df_factible.empty:
@@ -66,7 +66,7 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
 
         new_df = pd.DataFrame(new_results, columns=['PV_kWp', 'E_bess_kWh', 'npv', 'Feasible',
                                                     'CAPEX', 'Assets_OPEX_by_year', 'Fuel_by_year',
-                                                    'SOC_end_by_year', 'Losses_by_year'])
+                                                    'SOC_end_by_year', 'Losses_by_year', 'Payback_yr'])
         df = pd.concat([df, new_df], ignore_index=True)
         df_factible = df[df['Feasible'] == True]
         if df_factible.empty:
@@ -75,5 +75,14 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
             idx = df_factible['npv'].idxmax()
             best_row = df_factible.loc[idx]
             best = dict(best_row)
+
+    # Enriquecer 'best' con métricas detalladas del simulador
+    if best is not None:
+        detailed = simulate_operation(best['PV_kWp'], best['E_bess_kWh'], irr_annual, load_annual, cfg)
+        best['consumo_desde_pv'] = detailed.get('consumo_desde_pv', {})
+        best['consumo_desde_bess'] = detailed.get('consumo_desde_bess', {})
+        best['generación'] = detailed.get('generación', {})
+        best['horas_generador_on'] = detailed.get('horas_generador_on', {})
+        best['gross_savings'] = detailed.get('gross_savings', {})
 
     return best, df

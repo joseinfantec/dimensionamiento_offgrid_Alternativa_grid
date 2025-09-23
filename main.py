@@ -25,11 +25,11 @@ load_8760 = read_load_hourly_from_excel(path, sheet_name=sheet_name)
 cfg = SimulationConfig(
     N_years=15,
     r=0.07,
-    ef_charge=0.95,
-    ef_discharge=0.95,
+    ef_charge=0.99,
+    ef_discharge=0.99,
     DOD=0.9,
-    charge_rate=0.5,
-    discharge_rate=0.5,
+    charge_rate=0.99,
+    discharge_rate=0.99,
     pv_deg_rate=0.0045,
     C_pv_kWp=721155,
     C_bess_kWh=240385,
@@ -44,26 +44,27 @@ cfg = SimulationConfig(
 # ===========================
 # Simulación de operación (ejemplo)
 # ===========================
+
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()   
 
-    PV_test = 183  # kWp
-    E_test = 49   # kWh
+    PV_test = 156  # kWp
+    E_test = 491  # kWh
 
-    sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg)
-    print("===== Para PV = ", PV_test, "kWp y BESS =", E_test, "kWh =====")
-    print_results("Resultados de simulación ejemplo", sim_results)
+    #sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg)
+    #print("===== Para PV = ", PV_test, "kWp y BESS =", E_test, "kWh =====")
+    #print_results("Resultados de simulación ejemplo", sim_results)
 
 
 # ===========================
 # Optimización Grid Search
 # ===========================
-'''''
+
     best_grid, df_grid = grid_search_optimize(
         irr_8760, load_8760, cfg,
-        PV_range=(100, 250),
-        E_range=(30, 300),
+        PV_range=(100, 180),
+        E_range=(300, 500),
         nPV=21,
         nE=21,
         parallel=True,
@@ -77,13 +78,13 @@ if __name__ == "__main__":
         print_results_reducidos("Mejor PV+BESS (Grid Search)", best_grid)
     else:
         print("No se encontró una solución factible en Grid Search.")
-'''''
+
 # ===========================
 # Optimización MILP
 # ===========================
 '''''
-PV_options = list(range(10, 301, 10))
-E_options = list(range(0, 501, 50))
+PV_options = list(range(100, 201, 10))
+E_options = list(range(300, 601, 50))
 
 best_pv, best_e, best_res = milp_optimize(
     irr_annual=irr_8760,

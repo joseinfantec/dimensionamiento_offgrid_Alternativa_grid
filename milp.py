@@ -1,45 +1,48 @@
-from pulp import LpProblem, LpVariable, LpMaximize, lpSum, LpStatus
+from pulp import LpProblem, LpVariable, LpMaximize, lpSum
 from simulator import simulate_operation, SimulationConfig
 
 def milp_optimize(irr_annual, load_annual, cfg, PV_options, E_options):
     """
-    Optimización MILP simplificada usando NPV como objetivo.
-    PV_options y E_options son listas de posibles capacidades.
+    Optimización lineal: selecciona exactamente una combinación (PV, E) que maximiza el NPV
+    precomputado por simulate_operation sobre el horizonte de cfg.N_years.
     """
-    prob = LpProblem("PV_BESS_Optimization", LpMaximize)
-
-    # Variables binarias para selección de PV y BESS
-    x_pv = LpVariable.dicts("x_pv", PV_options, cat="Binary")
-    x_e = LpVariable.dicts("x_e", E_options, cat="Binary")
-
-    # Variables auxiliares para NPV de cada combinación
-    npv_vars = {}
+    # Precomputar NPV como constantes (parámetros del modelo)
+    npv_map = {}
     for pv in PV_options:
         for eb in E_options:
             res = simulate_operation(pv, eb, irr_annual, load_annual, cfg)
-            npv_vars[(pv, eb)] = res['npv']
+            npv_map[(pv, eb)] = res['npv']
 
-    # Función objetivo: maximizar NPV
-    prob += lpSum([npv_vars[(pv, eb)] * x_pv[pv] * x_e[eb] for pv in PV_options for eb in E_options])
+    # Modelo MILP
+    prob = LpProblem("PV_BESS_Optimization", LpMaximize)
 
-    # Restricción: solo se puede elegir un PV y un BESS
-    prob += lpSum([x_pv[pv] for pv in PV_options]) == 1
-    prob += lpSum([x_e[eb] for eb in E_options]) == 1
+    # Variable binaria para cada par (pv, eb)
+    y = LpVariable.dicts("y", [(pv, eb) for pv in PV_options for eb in E_options], cat="Binary")
+
+    # Objetivo: maximizar NPV esperado
+    prob += lpSum(npv_map[(pv, eb)] * y[(pv, eb)] for pv in PV_options for eb in E_options)
+
+    # Restricción: elegir exactamente una combinación
+    prob += lpSum(y[(pv, eb)] for pv in PV_options for eb in E_options) == 1
 
     # Resolver
     prob.solve()
 
-    # Obtener resultados
+    # Recuperar la mejor combinación
     best_pv = None
     best_e = None
     for pv in PV_options:
-        if x_pv[pv].varValue > 0.5:
-            best_pv = pv
+        for eb in E_options:
+            var = y[(pv, eb)]
+            if var.varValue is not None and var.varValue > 0.5:
+                best_pv = pv
+                best_e = eb
+                break
+        if best_pv is not None:
             break
-    for eb in E_options:
-        if x_e[eb].varValue > 0.5:
-            best_e = eb
-            break
+
+    if best_pv is None or best_e is None:
+        return None, None, None
 
     best_res = simulate_operation(best_pv, best_e, irr_annual, load_annual, cfg)
     return best_pv, best_e, best_res
