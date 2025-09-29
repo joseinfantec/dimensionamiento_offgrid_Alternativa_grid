@@ -1,5 +1,6 @@
 from data_loader import read_irradiation_from_excel, expand_monthly_matrix_to_annual_hourly, read_load_hourly_from_excel
 from simulator import SimulationConfig, simulate_operation
+from graficos import graficar_desde_series
 from optimizer import grid_search_optimize
 from milp import milp_optimize
 from funciones import *
@@ -25,20 +26,20 @@ load_8760 = read_load_hourly_from_excel(path, sheet_name=sheet_name)
 cfg = SimulationConfig(
     N_years=15,
     r=0.07,
-    ef_charge=0.99,
-    ef_discharge=0.99,
+    ef_charge=0.95,
+    ef_discharge=0.95,
     DOD=0.9,
-    charge_rate=0.99,
-    discharge_rate=0.99,
+    charge_rate=0.95,
+    discharge_rate=0.95,
     pv_deg_rate=0.0045,
-    C_pv_kWp=721155,
-    C_bess_kWh=240385,
+    C_pv_kWp=817309,
+    C_bess_kWh=375000.5,
     C_gen_kWh=288.462,
     C_om_pv_kW_yr=100000,
     C_om_bess_kWh_yr=50000,
     cpi=0.02,
     diesel_inflation=0.04,
-    bess_capacity_factors=[1,0.95,0.925,0.9,0.875,0.85,0.825,0.8,0.775,0.75,0.725,0.7,0.675,0.65,0.625,0.6]
+    bess_capacity_factors=[1,0.9488,0.9168,0.8895,0.8651,0.8426,0.8217,0.8020,0.7834,0.7657,0.7488,0.7326,0.7171,0.7021,0.6875,0.6730,0.6584,0.6437,0.6290,0.6143,0.6000]
 )
 
 # ===========================
@@ -49,18 +50,30 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()   
 
-    PV_test = 156  # kWp
-    E_test = 491  # kWh
+    PV_test = 151  # kWp
+    E_test = 448  # kWh
 
-    #sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg)
-    #print("===== Para PV = ", PV_test, "kWp y BESS =", E_test, "kWh =====")
-    #print_results("Resultados de simulación ejemplo", sim_results)
+    # Capturar día 30 de enero durante la simulación principal
+    sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg, capture_day_of_january=30)
+    print("===== Para PV = ", PV_test, "kWp y BESS =", E_test, "kWh =====")
+    print_results("Resultados de simulación ejemplo", sim_results)
 
+
+# ===========================
+# Graficos
+# ===========================
+# Pedir captura del día 30 de enero durante la simulación
+# Graficar directamente las series capturadas (día 30)
+    hourly = sim_results.get('hourly_capture')
+    if hourly:
+        import matplotlib.pyplot as plt
+        graficar_desde_series(hourly)
+        plt.show()
 
 # ===========================
 # Optimización Grid Search
 # ===========================
-
+'''''
     best_grid, df_grid = grid_search_optimize(
         irr_8760, load_8760, cfg,
         PV_range=(100, 180),
@@ -82,7 +95,7 @@ if __name__ == "__main__":
 # ===========================
 # Optimización MILP
 # ===========================
-'''''
+
 PV_options = list(range(100, 201, 10))
 E_options = list(range(300, 601, 50))
 

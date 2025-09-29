@@ -11,8 +11,8 @@ class SimulationConfig:
                 discharge_rate=0.5,            # 0.5C Capacidad máxima de descarga                       
                 pv_deg_rate=0.005,             # Degradación 0.5% anual
                 bess_capacity_factors=None,    # Lista de factores de capacidad del BESS por año (1.0 = sin degradación)                   
-                C_pv_kWp=721155.0,                # Costo del kW en FV               
-                C_bess_kWh=240385.0,              # Costo del kWh en BESS          
+                C_pv_kWp=817309.0,                # Costo del kW en FV               
+                C_bess_kWh=375000.5,              # Costo del kWh en BESS          
                 C_gen_kWh= 288.462,               # Precio Combustible por kWh eléctrico            
                 C_om_pv_kW_yr= 100000.0,            # Costo operación y mantenimiento FV       
                 C_om_bess_kWh_yr=50000.0,          # Costo operación y mantenimiento BESS               
@@ -46,7 +46,7 @@ class SimulationConfig:
 
         self.battery_replacement = battery_replacement
 
-def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: SimulationConfig):
+def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: SimulationConfig, capture_day_of_january=None):
     hours_per_year = len(irr_annual)
     if len(load_annual) != hours_per_year:
         raise ValueError("irr_annual y load_annual deben tener igual longitud")
@@ -56,7 +56,7 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
     capex = PV_kWp * cfg.C_pv_kWp + E_bess_kWh * cfg.C_bess_kWh
     feasible = True
 
-    soc = cfg.soc_min_frac * E_bess_kWh * cfg.bess_capacity_factors[0]
+    soc = cfg.soc_min_frac * E_bess_kWh * cfg.bess_capacity_factors[1]
 
     fuel_by_year = {}
     PV_BESS_GEN_opex_by_year = {}
@@ -70,6 +70,15 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
     gen_hours = {}
     gross_savings = {}
 
+
+    # Preparación de captura horaria (opcional) para un día de enero del año 1
+    capture_hours_range = None
+    hourly_capture = None
+    if isinstance(capture_day_of_january, int) and 1 <= capture_day_of_january <= 31:
+        start_h = (capture_day_of_january - 1) * 24
+        end_h = start_h + 24
+        capture_hours_range = (start_h, end_h)
+        hourly_capture = {"load": [], "from_pv": [], "from_bess": [], "from_gen": [], "soc": [], "pv_gen": []}
 
     for y in range(1, cfg.N_years + 1):
         degpv = cfg.deg_pv[y]
@@ -129,7 +138,14 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 gen_hours_year += 1
 
 
-            #if y==1 and h < 24:
+            # Captura horaria del día seleccionado (solo año 1)
+            if y == 1 and capture_hours_range is not None and capture_hours_range[0] <= h < capture_hours_range[1]:
+                hourly_capture["load"].append(load)
+                hourly_capture["from_pv"].append(pv_to_load)
+                hourly_capture["from_bess"].append(delivered)
+                hourly_capture["from_gen"].append(fuel)
+                hourly_capture["soc"].append(soc)
+                hourly_capture["pv_gen"].append(pv_gen)
             #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
 
 
@@ -206,7 +222,8 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         'horas_generador_on': gen_hours,
         'gross_savings': gross_savings,
         'fuel_savings_by_year': fuel_savings_by_year,
-        'payback_year': payback_year
+        'payback_year': payback_year,
+        'hourly_capture': hourly_capture
     }
 
 

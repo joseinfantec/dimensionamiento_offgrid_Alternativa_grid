@@ -18,7 +18,7 @@ def print_results(title, results):
         "Pérdidas FV": [results['losses_by_year'][y] for y in years],
         #"SOC final": [results['soc_end_by_year'][y] for y in years],
         #"Opex PV+BESS+GEN": [results['assets_opex_by_year'][y] for y in years],
-        #"Horas generador ON": [results['horas_generador_on'][y] for y in years],
+        "Horas generador ON": [results['horas_generador_on'][y] for y in years],
         "Gross Savings": [results['gross_savings'][y] for y in years],
         #"Fuel Savings": [results['fuel_savings_by_year'][y] for y in years],
     }
