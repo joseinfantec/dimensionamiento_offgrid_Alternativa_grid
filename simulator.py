@@ -8,16 +8,22 @@ class SimulationConfig:
                 ef_discharge=0.95,             # Eficiencia de descarga del BESS
                 DOD=0.8,                       # DOD de la batería
                 charge_rate=0.5,               # 0.5C Capacidad máxima de carga       
-                discharge_rate=0.5,            # 0.5C Capacidad máxima de descarga                       
+                discharge_rate=0.5,            # 0.5C Capacidad máxima de descarga 
+                bess_capacity_factors=None,    # Lista de factores de capacidad del BESS por año (1.0 = sin degradación)                      
                 pv_deg_rate=0.005,             # Degradación 0.5% anual
-                bess_capacity_factors=None,    # Lista de factores de capacidad del BESS por año (1.0 = sin degradación)                   
-                C_pv_kWp=817309.0,                # Costo del kW en FV               
-                C_bess_kWh=375000.5,              # Costo del kWh en BESS          
-                C_gen_kWh= 288.462,               # Precio Combustible por kWh eléctrico            
-                C_om_pv_kW_yr= 100000.0,            # Costo operación y mantenimiento FV       
-                C_om_bess_kWh_yr=50000.0,          # Costo operación y mantenimiento BESS               
+
+                C_pv_kWp=817309.0,             # Costo del kW en FV               
+                C_bess_kWh=375000.5,           # Costo del kWh en BESS
+                C_om_pv_kW_yr= 0,              # Costo operación y mantenimiento FV       
+                C_om_bess_kWh_yr= 0,           # Costo operación y mantenimiento BESS          
+                
+                
+                C_diesel_lt= 1100,             # Precio Diesel (CLP/lt)
+                DG_performance_factors=None,   # Lista de factores de rendimiento para 25%, 50%, 75% y 100% de carga
+                DG_power = 160,                # Potencia PRIME del generador   
+
                 cpi = 0.02,                    # Indice CPI de la planilla de excel
-                diesel_inflation = 0.04,       # Inflación del costo del diésel
+                diesel_inflation = 0.02,       # Inflación del costo del diésel
                 battery_replacement=None):     # Diccionario {año: costo por kWh} para reemplazo de batería en años específicos
 
         self.N_years = N_years
@@ -146,6 +152,11 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 hourly_capture["from_gen"].append(fuel)
                 hourly_capture["soc"].append(soc)
                 hourly_capture["pv_gen"].append(pv_gen)
+            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
+
+            #if y==1 and h < 24:
+            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
+            #if y==1 and h < 24:
             #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
 
 

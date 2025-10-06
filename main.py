@@ -32,13 +32,13 @@ cfg = SimulationConfig(
     charge_rate=0.95,
     discharge_rate=0.95,
     pv_deg_rate=0.0045,
-    C_pv_kWp=817309,
-    C_bess_kWh=375000.5,
+    C_pv_kWp=788462,
+    C_bess_kWh=355769.5,
     C_gen_kWh=288.462,
-    C_om_pv_kW_yr=100000,
-    C_om_bess_kWh_yr=50000,
+    C_om_pv_kW_yr=0,
+    C_om_bess_kWh_yr=0,
     cpi=0.02,
-    diesel_inflation=0.04,
+    diesel_inflation=0.02,
     bess_capacity_factors=[1,0.9488,0.9168,0.8895,0.8651,0.8426,0.8217,0.8020,0.7834,0.7657,0.7488,0.7326,0.7171,0.7021,0.6875,0.6730,0.6584,0.6437,0.6290,0.6143,0.6000]
 )
 
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()   
 
-    PV_test = 151  # kWp
-    E_test = 448  # kWh
+    PV_test = 169  # kWp
+    E_test = 108  # kWh
 
     # Capturar día 30 de enero durante la simulación principal
     sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg, capture_day_of_january=30)
@@ -64,11 +64,11 @@ if __name__ == "__main__":
 # ===========================
 # Pedir captura del día 30 de enero durante la simulación
 # Graficar directamente las series capturadas (día 30)
-    hourly = sim_results.get('hourly_capture')
-    if hourly:
-        import matplotlib.pyplot as plt
-        graficar_desde_series(hourly)
-        plt.show()
+    #hourly = sim_results.get('hourly_capture')
+    #if hourly:
+    #    import matplotlib.pyplot as plt
+    #    graficar_desde_series(hourly)
+    #    plt.show()
 
 # ===========================
 # Optimización Grid Search
@@ -76,8 +76,8 @@ if __name__ == "__main__":
 '''''
     best_grid, df_grid = grid_search_optimize(
         irr_8760, load_8760, cfg,
-        PV_range=(100, 180),
-        E_range=(300, 500),
+        PV_range=(100, 300),
+        E_range=(108, 108.0001),
         nPV=21,
         nE=21,
         parallel=True,
@@ -96,8 +96,8 @@ if __name__ == "__main__":
 # Optimización MILP
 # ===========================
 
-PV_options = list(range(100, 201, 10))
-E_options = list(range(300, 601, 50))
+PV_options = list(range(50, 201, 10))
+E_options = list(range(40, 300, 50))
 
 best_pv, best_e, best_res = milp_optimize(
     irr_annual=irr_8760,
