@@ -8,8 +8,19 @@ import pandas as pd
 def evaluate_grid_point(args):
     PV, E, irr, load, cfg = args
     res = simulate_operation(PV, E, irr, load, cfg)
-    return (PV, E, res['npv'], res['feasible'], res['capex'], res['assets_opex_by_year'],
-            res['fuel_by_year'], res['soc_end_by_year'], res['losses_by_year'], res.get('payback_year'))
+    return (PV, E, res['npv'], res['feasible'], res['capex'],
+            res['assets_opex_by_year'],
+            res['fuel_liters_hybrid_by_year'],
+            res['fuel_liters_genonly_by_year'],
+            res['fuel_cost_hybrid_by_year'],
+            res['fuel_cost_genonly_by_year'],
+            res['soc_end_by_year'],
+            res['losses_by_year'],
+            #res.get('hourly_capture'),
+            #res.get('net_savings_by_year'),
+            #res.get('horas_generador_on'),
+            #res.get('generacion'),
+            res.get('payback_year'))
 
 def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range=(0,500), nPV=21, nE=21, parallel=True, nprocs=4, refine_steps=2, refine_factor=0.25):
     PV_min, PV_max = PV_range
@@ -29,8 +40,9 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
 
 
     df = pd.DataFrame(results, columns=['PV_kWp', 'E_bess_kWh', 'npv', 'Feasible',
-                                        'CAPEX', 'Assets_OPEX_by_year', 'Fuel_by_year',
-                                        'SOC_end_by_year', 'Losses_by_year', 'Payback_yr'])
+                                        'CAPEX', 'Assets_OPEX_by_year', 'Fuel_liters_hybrid_by_year', 'Fuel_liters_genonly_by_year',
+                                        'Fuel_cost_hybrid_by_year', 'Fuel_cost_genonly_by_year',
+                                        'SOC_end_by_year', 'Losses_by_year', 'Payback_yr', ])
     df_factible = df[df['Feasible'] == True]
     best = None
     if not df_factible.empty:

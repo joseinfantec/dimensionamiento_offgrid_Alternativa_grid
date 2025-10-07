@@ -1,4 +1,5 @@
 import numpy as np
+from funciones import interp_lph_from_curve
 
 class SimulationConfig:
     def __init__(self,
@@ -43,10 +44,13 @@ class SimulationConfig:
         self.bess_capacity_factors = bess_capacity_factors if bess_capacity_factors is not None else [1.0]*self.N_years
         self.deg_pv = {y: (1 - self.pv_deg_rate) ** (y) for y in range(1, self.N_years + 1)}
 
+        self.DG_performance_factors = DG_performance_factors
+        self.DG_power = DG_power
+        
 
+        self.C_diesel_lt = C_diesel_lt
         self.C_pv_kWp = C_pv_kWp
         self.C_bess_kWh = C_bess_kWh
-        self.C_gen_kWh = C_gen_kWh
         self.C_om_pv_kW_yr = C_om_pv_kW_yr
         self.C_om_bess_kWh_yr = C_om_bess_kWh_yr
 
@@ -64,17 +68,24 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
 
     soc = cfg.soc_min_frac * E_bess_kWh * cfg.bess_capacity_factors[1]
 
-    fuel_by_year = {}
+
+    fuel_hybrid_by_year = {}
+    fuel_genonlly_by_year = {}
+    fuel_cost_hybrid = {}
+    fuel_cost_genonly = {}
+    fuel_savings_cost = {}
+    fuel_savings_cost_discounted = {}
+
+    consumo_desde_genset_hybrid = {}
     PV_BESS_GEN_opex_by_year = {}
     soc_end_by_year = {}
-    fuel_savings_by_year = {}
-    net_savings_by_year = {}
     losses_by_year = {}
     consumo_desde_pv = {}
     consumo_desde_bess = {}
-    generación_por_año = {}
+    generacion_por_año = {}
     gen_hours = {}
     gross_savings = {}
+    net_savings_by_year = {}
 
 
     # Preparación de captura horaria (opcional) para un día de enero del año 1
@@ -86,20 +97,24 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         capture_hours_range = (start_h, end_h)
         hourly_capture = {"load": [], "from_pv": [], "from_bess": [], "from_gen": [], "soc": [], "pv_gen": []}
 
+    curve = {25: cfg.DG_performance_factors[0], 50: cfg.DG_performance_factors[1],
+             75: cfg.DG_performance_factors[2], 100: cfg.DG_performance_factors[3]}
+
     for y in range(1, cfg.N_years + 1):
         degpv = cfg.deg_pv[y]
         bess_factor = cfg.bess_capacity_factors[y]
-        pv_load = 0.0
-        bess_load = 0.0
-        fuel_consumed_year = 0.0
+
+        pv_served = 0.0
+        bess_served = 0.0
+        gen_served = 0.0
+        fuel_liters_year_hybrid = 0.0
+        fuel_liters_year_genonly = 0.0
         losses_year = 0.0
         gen_hours_year = 0
         load_hours_year = 0
         generación_anual = 0.0
         
 
-        #hourly_charging_limit = min(cfg.charge_rate * E_bess_kWh * bess_factor, E_bess_kWh * bess_factor)
-        #hourly_discharging_limit = min(cfg.discharge_rate * E_bess_kWh * bess_factor, E_bess_kWh * bess_factor)
         hourly_charging_limit = E_bess_kWh * cfg.charge_rate
         hourly_discharging_limit = E_bess_kWh * cfg.discharge_rate
 
@@ -108,15 +123,17 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
             load = load_annual[h]
             if load > 0:
                 load_hours_year += 1
+
             pv_gen = PV_kWp * irr * degpv  # Se divide en 1000 para pasar de W a kW
             generación_anual += pv_gen
             delivered = 0.0
-            fuel = 0.0
+            gen_kwh = 0.0
+            #fuel = 0.0
 
             pv_to_load = min(pv_gen, load)
+            pv_served += pv_to_load
             remaining_load = load - pv_to_load
             pv_excess = pv_gen - pv_to_load
-            pv_load += pv_to_load
 
             # Si hay carga remanente, intentar cubrirla con BESS
             if pv_excess > 1e-6:
@@ -134,14 +151,34 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 delivered = can_discharge * cfg.discharge_ef
                 soc -= can_discharge
                 remaining_load -= delivered
-                bess_load += delivered
+                bess_served += delivered
 
 
             if remaining_load > 1e-6:
-                fuel = remaining_load
-                fuel_consumed_year += fuel
-                remaining_load = 0.0
+                gen_kwh = remaining_load
+                gen_served += gen_kwh
+                percent_load = (gen_kwh / cfg.DG_power) * 100.0 if cfg.DG_power > 0 else 100.0
+                percent_for_fuel = percent_load
+
+                # interpolar litros/hora para el porcentaje dado
+                lph = interp_lph_from_curve(percent_for_fuel, curve)
+                fuel_liters_year_hybrid += lph  # 1 hora
                 gen_hours_year += 1
+                remaining_load = 0.0
+
+                #fuel = remaining_load
+                #fuel_consumed_year += fuel
+                #remaining_load = 0.0
+                #gen_hours_year += 1
+            
+            # Para escenario "solo generador": genset debe servir toda la carga 'load'
+            if load > 1e-12:
+                percent_only = (load / cfg.DG_power) * 100.0 if cfg.DG_power > 0 else 100.0
+                if percent_only > 100.0:
+                    raise ValueError("El tamaño del generador no es suficiente para suplir el consumo del caso solo genset.")
+                else:
+                    fuel_lph_only = interp_lph_from_curve(percent_only, curve)
+                fuel_liters_year_genonly += fuel_lph_only
 
 
             # Captura horaria del día seleccionado (solo año 1)
@@ -149,59 +186,66 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 hourly_capture["load"].append(load)
                 hourly_capture["from_pv"].append(pv_to_load)
                 hourly_capture["from_bess"].append(delivered)
-                hourly_capture["from_gen"].append(fuel)
+                hourly_capture["from_gen"].append(gen_kwh)
                 hourly_capture["soc"].append(soc)
                 hourly_capture["pv_gen"].append(pv_gen)
             #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
 
+            if y==1 and h < 24:
+                print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", gen_kwh, ". SOC ", soc, ". Gen ", pv_gen)
             #if y==1 and h < 24:
             #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
-            #if y==1 and h < 24:
-            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
+            # limpiar variable local gen_kwh para próxima iteración (evitar reusar)
 
 
-        soc_end = soc
-        soc_end_by_year[y] = soc_end
+        soc_end_by_year[y] = soc
         losses_by_year[y] = losses_year
-        if y < cfg.N_years:
-            soc = min(soc, E_bess_kWh * cfg.bess_capacity_factors[y+1] * cfg.soc_max_frac)
+        fuel_hybrid_by_year[y] = round(float(fuel_liters_year_hybrid), 2)
+        fuel_genonlly_by_year[y] = round(float(fuel_liters_year_genonly), 2)
 
+        price_year = cfg.C_diesel_lt * ((1 + cfg.diesel_inflation) ** (y))
+        fuel_cost_hybrid[y] = round(float(fuel_liters_year_hybrid * price_year), 2)
+        fuel_cost_genonly[y] = round(float(fuel_liters_year_genonly * price_year), 2)
+        #served_by_clean = (load_total_year - fuel_consumed_year)  # en kWh
+        #fuel_savings_year = served_by_clean * cfg.C_gen_kWh * ((1 + cfg.diesel_inflation) ** (y))
 
-        served_by_clean = (load_total_year - fuel_consumed_year)  # en kWh
-        fuel_savings_year = served_by_clean * cfg.C_gen_kWh * ((1 + cfg.diesel_inflation) ** (y))
+        #liters_saved = fuel_liters_year_genonly - fuel_liters_year_hybrid
+        cost_saved = fuel_cost_genonly[y] - fuel_cost_hybrid[y]
+        #fuel_savings_liters[y] = round(float(liters_saved), 2)
+        fuel_savings_cost[y] = round(float(cost_saved), 2)
+        fuel_savings_cost_discounted[y] = round(float(cost_saved * cfg.df_year[y]), 2)
+
+        consumo_desde_pv[y] = round(float(pv_served), 2)
+        consumo_desde_bess[y] = round(float(bess_served), 2)
+        consumo_desde_genset_hybrid[y] = round(float(gen_served), 2)
+        generacion_por_año[y] = round(float(generación_anual), 2)
+        gen_hours[y] = gen_hours_year
 
         GEN_opex_year = 1100 *(load_hours_year - gen_hours_year) * ((1 + cfg.cpi) ** (y))
-        # PV_BESS_opex = (PV_kWp * cfg.C_om_pv_kW_yr + E_bess_kWh * cfg.C_om_bess_kWh_yr) * ((1 + cfg.cpi) ** (y - 1))
         PV_BESS_opex = (cfg.C_om_pv_kW_yr + cfg.C_om_bess_kWh_yr) * ((1 + cfg.cpi) ** (y))
-        gross_savings_year = (fuel_savings_year - PV_BESS_opex + GEN_opex_year)
-        net_savings_year = (fuel_savings_year - PV_BESS_opex + GEN_opex_year) * cfg.df_year[y]
-
-        generación_por_año[y] = generación_anual
-        fuel_by_year[y] = fuel_consumed_year
-        consumo_desde_pv[y] = pv_load
-        consumo_desde_bess[y] = bess_load
         PV_BESS_GEN_opex_by_year[y] = {"pv_bess": PV_BESS_opex,"gen": GEN_opex_year}
-        fuel_savings_by_year[y] = fuel_savings_year
-        net_savings_by_year[y] = net_savings_year
-        gen_hours[y] = gen_hours_year
-        gross_savings[y] = gross_savings_year
 
+        gross_savings_year = cost_saved - PV_BESS_opex + GEN_opex_year
+        gross_savings[y] = gross_savings_year
+        net_savings_by_year[y] = (gross_savings_year) * cfg.df_year[y]
+
+        #consumo_desde_genset_hybrid[y] = fuel_consumed_year
+        #fuel_savings_by_year[y] = fuel_savings_year
+
+        if y < cfg.N_years:
+            soc = min(soc, E_bess_kWh * cfg.bess_capacity_factors[y+1] * cfg.soc_max_frac)
        #if cfg.battery_replacement and (y in cfg.battery_replacement):
        #    repl_cost = cfg.battery_replacement[y] * E_bess_kWh
 
     # --- Conversiones a float nativo y redondeo a 2 decimales ---
-    fuel_by_year = {y: round(float(v), 2) for y, v in fuel_by_year.items()}
     soc_end_by_year = {y: round(float(v), 2) for y, v in soc_end_by_year.items()}
     losses_by_year = {y: round(float(v), 2) for y, v in losses_by_year.items()}
-    consumo_desde_pv = {y: round(float(v), 2) for y, v in consumo_desde_pv.items()}
-    consumo_desde_bess = {y: round(float(v), 2) for y, v in consumo_desde_bess.items()}
-    generación_por_año = {y: round(float(v), 2) for y, v in generación_por_año.items()}
     PV_BESS_GEN_opex_by_year = {
         y: {"pv_bess": round(float(vals["pv_bess"]), 2), "gen": round(float(vals["gen"]), 2)}
         for y, vals in PV_BESS_GEN_opex_by_year.items()
     }
     gross_savings = {y: round(float(v), 2) for y, v in gross_savings.items()}
-    fuel_savings_by_year = {y: round(float(v), 2) for y, v in fuel_savings_by_year.items()}
+
 
     # --- NPV y Payback (descontado) ---
     npv = -capex + sum(net_savings_by_year.values())
@@ -223,16 +267,21 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         'capex': round(float(capex), 2),
         'npv': npv,
         'feasible': feasible,
-        'fuel_by_year': fuel_by_year,
+        'fuel_hybrid_by_year': fuel_hybrid_by_year, # litros híbrido por año
+        'fuel_genonlly_by_year': fuel_genonlly_by_year, # litros gen-only por año
+        'fuel_cost_hybrid': fuel_cost_hybrid,
+        'fuel_cost_genonly': fuel_cost_genonly,
+        'fuel_savings_cost': fuel_savings_cost,
+        #'fuel_savings_cost_discounted': fuel_savings_cost_discounted,
         'assets_opex_by_year': PV_BESS_GEN_opex_by_year,
         'soc_end_by_year': soc_end_by_year,
         'losses_by_year': losses_by_year,
         'consumo_desde_pv': consumo_desde_pv,
         'consumo_desde_bess': consumo_desde_bess,
-        'generación': generación_por_año,
+        'consumo_desde_genset': consumo_desde_genset_hybrid,
+        'generación': generacion_por_año,
         'horas_generador_on': gen_hours,
         'gross_savings': gross_savings,
-        'fuel_savings_by_year': fuel_savings_by_year,
         'payback_year': payback_year,
         'hourly_capture': hourly_capture
     }
