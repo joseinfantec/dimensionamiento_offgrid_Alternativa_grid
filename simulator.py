@@ -21,7 +21,8 @@ class SimulationConfig:
                 
                 C_diesel_lt= 1100,             # Precio Diesel (CLP/lt)
                 DG_performance_factors=None,   # Lista de factores de rendimiento para 25%, 50%, 75% y 100% de carga
-                DG_power = 160,                # Potencia PRIME del generador   
+                DG_power = 160,                # Potencia PRIME del generador
+                DG_opex = 1100,                # Opex por hora de funcionamiento
 
                 cpi = 0.02,                    # Indice CPI de la planilla de excel
                 diesel_inflation = 0.02,       # Inflación del costo del diésel
@@ -53,6 +54,7 @@ class SimulationConfig:
         self.C_bess_kWh = C_bess_kWh
         self.C_om_pv_kW_yr = C_om_pv_kW_yr
         self.C_om_bess_kWh_yr = C_om_bess_kWh_yr
+        self.DG_opex = DG_opex
 
         self.battery_replacement = battery_replacement
 
@@ -70,7 +72,7 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
 
 
     fuel_hybrid_by_year = {}
-    fuel_genonlly_by_year = {}
+    fuel_genonly_by_year = {}
     fuel_cost_hybrid = {}
     fuel_cost_genonly = {}
     fuel_savings_cost = {}
@@ -191,17 +193,14 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 hourly_capture["pv_gen"].append(pv_gen)
             #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
 
-            if y==1 and h < 24:
-                print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", gen_kwh, ". SOC ", soc, ". Gen ", pv_gen)
             #if y==1 and h < 24:
-            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
-            # limpiar variable local gen_kwh para próxima iteración (evitar reusar)
+            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", gen_kwh, ". SOC ", soc, ". Gen ", pv_gen)
 
 
         soc_end_by_year[y] = soc
         losses_by_year[y] = losses_year
         fuel_hybrid_by_year[y] = round(float(fuel_liters_year_hybrid), 2)
-        fuel_genonlly_by_year[y] = round(float(fuel_liters_year_genonly), 2)
+        fuel_genonly_by_year[y] = round(float(fuel_liters_year_genonly), 2)
 
         price_year = cfg.C_diesel_lt * ((1 + cfg.diesel_inflation) ** (y))
         fuel_cost_hybrid[y] = round(float(fuel_liters_year_hybrid * price_year), 2)
@@ -221,7 +220,7 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         generacion_por_año[y] = round(float(generación_anual), 2)
         gen_hours[y] = gen_hours_year
 
-        GEN_opex_year = 1100 *(load_hours_year - gen_hours_year) * ((1 + cfg.cpi) ** (y))
+        GEN_opex_year = cfg.DG_opex *(load_hours_year - gen_hours_year) * ((1 + cfg.cpi) ** (y))
         PV_BESS_opex = (cfg.C_om_pv_kW_yr + cfg.C_om_bess_kWh_yr) * ((1 + cfg.cpi) ** (y))
         PV_BESS_GEN_opex_by_year[y] = {"pv_bess": PV_BESS_opex,"gen": GEN_opex_year}
 
@@ -232,8 +231,8 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         #consumo_desde_genset_hybrid[y] = fuel_consumed_year
         #fuel_savings_by_year[y] = fuel_savings_year
 
-        if y < cfg.N_years:
-            soc = min(soc, E_bess_kWh * cfg.bess_capacity_factors[y+1] * cfg.soc_max_frac)
+        #if y < cfg.N_years:
+        #    soc = min(soc, E_bess_kWh * cfg.bess_capacity_factors[y+1] * cfg.soc_max_frac)
        #if cfg.battery_replacement and (y in cfg.battery_replacement):
        #    repl_cost = cfg.battery_replacement[y] * E_bess_kWh
 
@@ -268,7 +267,7 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         'npv': npv,
         'feasible': feasible,
         'fuel_hybrid_by_year': fuel_hybrid_by_year, # litros híbrido por año
-        'fuel_genonlly_by_year': fuel_genonlly_by_year, # litros gen-only por año
+        'fuel_genonly_by_year': fuel_genonly_by_year, # litros gen-only por año
         'fuel_cost_hybrid': fuel_cost_hybrid,
         'fuel_cost_genonly': fuel_cost_genonly,
         'fuel_savings_cost': fuel_savings_cost,

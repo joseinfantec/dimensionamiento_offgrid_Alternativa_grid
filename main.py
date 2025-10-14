@@ -8,7 +8,7 @@ from funciones import *
 # ===========================
 # Carga de datos
 # ===========================
-path = r"C:\Users\josem\OneDrive\Escritorio\Versión_Final_Clientes_OFFGRID.xlsm"
+path = r"C:\Users\jinfa\Desktop\Versión_Final_Clientes_OFFGRID.xlsm"
 sheet_name = "Gen_Cons_Horario"
 
 # Cargar matriz mensual de irradiación (24h x 12 meses)
@@ -32,17 +32,18 @@ cfg = SimulationConfig(
     charge_rate=0.5,
     discharge_rate=0.5,
     pv_deg_rate=0.0045,
-    C_pv_kWp=788462.8,
-    C_bess_kWh=355769.8,
+    C_pv_kWp=817309,
+    C_bess_kWh=375000.6,
     C_diesel_lt=1100,
     C_om_pv_kW_yr=0,
     C_om_bess_kWh_yr=0,
     cpi=0.02,
     diesel_inflation=0.02,
     bess_capacity_factors=[1,0.9488,0.9168,0.8895,0.8651,0.8426,0.8217,0.8020,0.7834,0.7657,0.7488,0.7326,0.7171,0.7021,0.6875,0.6730,0.6584,0.6437,0.6290,0.6143,0.6000],
-    DG_performance_factors=[8, 20.5, 31.3, 40.8],
-    DG_power=160,
-)
+    DG_performance_factors=[3.8, 4.9, 6.9, 8.8],
+    DG_power=32,            #Potencia Prime
+    DG_opex = 1100,         #Opex por hora de funcionamiento
+    )
 
 # ===========================
 # Simulación de operación (ejemplo)
@@ -52,13 +53,13 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()   
 
-    PV_test = 190  # kWp
-    E_test = 84  # kWh
+    PV_test =  150  # kWp
+    E_test = 456  # kWh
 
     # Capturar día 30 de enero durante la simulación principal
-    sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg, capture_day_of_january=30)
-    print("===== Para PV = ", PV_test, "kWp y BESS =", E_test, "kWh =====")
-    print_results("Resultados de simulación ejemplo", sim_results)
+    #sim_results = simulate_operation(PV_test, E_test, irr_8760, load_8760, cfg, capture_day_of_january=30)
+    #print("===== Para PV = ", PV_test, "kWp y BESS =", E_test, "kWh =====")
+    #print_results("Resultados de simulación ejemplo", sim_results)
 
 
 # ===========================
@@ -75,24 +76,24 @@ if __name__ == "__main__":
 # ===========================
 # Optimización Grid Search
 # ===========================
-'''''
-    best_grid, df_grid = grid_search_optimize(
-        irr_8760, load_8760, cfg,
-        PV_range=(100, 300),
-        E_range=(108, 108.0001),
-        nPV=21,
-        nE=21,
-        parallel=True,
-        nprocs=4
-    )
+
+    #best_grid, df_grid = grid_search_optimize(
+    #    irr_8760, load_8760, cfg,
+    #    PV_range=(120, 170),
+    #    E_range=(400, 500),
+    #    nPV=21,
+    #    nE=21,
+    #    parallel=True,
+    #    nprocs=4
+    #)
     # La dejé comentada, si no funciona el código tengo que borrar el #
     #print("Best grid:", best_grid)
 
 
-    if best_grid is not None:
-        print_results_reducidos("Mejor PV+BESS (Grid Search)", best_grid)
-    else:
-        print("No se encontró una solución factible en Grid Search.")
+    #if best_grid is not None:
+    #    print_results_reducidos("Mejor PV+BESS (Grid Search)", best_grid)
+    #else:
+    #    print("No se encontró una solución factible en Grid Search.")
 
 # ===========================
 # Optimización MILP
@@ -112,4 +113,3 @@ best_pv, best_e, best_res = milp_optimize(
 print("\n--- Mejor PV+BESS (MILP) ---")
 print(f"PV: {best_pv} kWp, BESS: {best_e} kWh")
 print(f"NPV: {best_res['npv']:.2f}")
-'''''

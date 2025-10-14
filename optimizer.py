@@ -2,7 +2,7 @@ from multiprocessing import Pool
 import numpy as np
 from simulator import simulate_operation
 import pandas as pd
-
+import time
 
 
 def evaluate_grid_point(args):
@@ -10,10 +10,10 @@ def evaluate_grid_point(args):
     res = simulate_operation(PV, E, irr, load, cfg)
     return (PV, E, res['npv'], res['feasible'], res['capex'],
             res['assets_opex_by_year'],
-            res['fuel_liters_hybrid_by_year'],
-            res['fuel_liters_genonly_by_year'],
-            res['fuel_cost_hybrid_by_year'],
-            res['fuel_cost_genonly_by_year'],
+            res['fuel_hybrid_by_year'],
+            res['fuel_cost_genonly'],
+            res['fuel_cost_hybrid'],
+            res['fuel_cost_genonly'],
             res['soc_end_by_year'],
             res['losses_by_year'],
             #res.get('hourly_capture'),
@@ -23,6 +23,7 @@ def evaluate_grid_point(args):
             res.get('payback_year'))
 
 def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range=(0,500), nPV=21, nE=21, parallel=True, nprocs=4, refine_steps=2, refine_factor=0.25):
+    start_time = time.time()
     PV_min, PV_max = PV_range
     E_min, E_max = E_range
     PV_grid = np.linspace(PV_min, PV_max, nPV)
@@ -41,7 +42,7 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
 
     df = pd.DataFrame(results, columns=['PV_kWp', 'E_bess_kWh', 'npv', 'Feasible',
                                         'CAPEX', 'Assets_OPEX_by_year', 'Fuel_liters_hybrid_by_year', 'Fuel_liters_genonly_by_year',
-                                        'Fuel_cost_hybrid_by_year', 'Fuel_cost_genonly_by_year',
+                                        'Fuel_cost_hybrid', 'Fuel_cost_genonly',
                                         'SOC_end_by_year', 'Losses_by_year', 'Payback_yr', ])
     df_factible = df[df['Feasible'] == True]
     best = None
@@ -77,8 +78,9 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
                 new_results.append(evaluate_grid_point(t))
 
         new_df = pd.DataFrame(new_results, columns=['PV_kWp', 'E_bess_kWh', 'npv', 'Feasible',
-                                                    'CAPEX', 'Assets_OPEX_by_year', 'Fuel_by_year',
-                                                    'SOC_end_by_year', 'Losses_by_year', 'Payback_yr'])
+                                        'CAPEX', 'Assets_OPEX_by_year', 'Fuel_liters_hybrid_by_year', 'Fuel_liters_genonly_by_year',
+                                        'Fuel_cost_hybrid', 'Fuel_cost_genonly',
+                                        'SOC_end_by_year', 'Losses_by_year', 'Payback_yr', ])
         df = pd.concat([df, new_df], ignore_index=True)
         df_factible = df[df['Feasible'] == True]
         if df_factible.empty:
@@ -97,4 +99,7 @@ def grid_search_optimize(irr_annual, load_annual, cfg, PV_range=(0,500), E_range
         best['horas_generador_on'] = detailed.get('horas_generador_on', {})
         best['gross_savings'] = detailed.get('gross_savings', {})
 
+    end_time = time.time()
+    elapsed = end_time - start_time
+    print(f"⏱ Tiempo total de optimización: {elapsed:.2f} segundos")
     return best, df

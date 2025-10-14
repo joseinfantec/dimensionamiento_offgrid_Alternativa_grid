@@ -23,7 +23,7 @@ def print_results(title, results):
         "Gross Savings": [results['gross_savings'][y] for y in years],
         #"Fuel Savings": [results['fuel_savings_by_year'][y] for y in years],
         "Fuel (lt) híbrido:": [results['fuel_hybrid_by_year'][y] for y in years],
-        "Fuel (lt) solo genset:": [results['fuel_genonlly_by_year'][y] for y in years],
+        "Fuel (lt) solo genset:": [results['fuel_genonly_by_year'][y] for y in years],
     }
 
     df = pd.DataFrame(data, index=years)
@@ -53,7 +53,7 @@ def print_results_reducidos(title, best):
     print(f"PV: {best['PV_kWp']:.2f} kWp, BESS: {best['E_bess_kWh']:.2f} kWh")
 
     # Convertir a tabla anual con métricas solicitadas
-    years = sorted(best['Fuel_by_year'].keys())
+    years = sorted(best['fuel_hybrid_by_year'].keys())
 
     # Claves esperadas que fueron añadidas en optimizer al 'best'
     consumo_pv = best.get('consumo_desde_pv') or {}
@@ -63,7 +63,7 @@ def print_results_reducidos(title, best):
     gross_savings = best.get('gross_savings') or {}
 
     data = {
-        "Consumo desde Genset": [best['Fuel_by_year'].get(y, 0.0) for y in years],
+        "Consumo desde Genset": [best['fuel_hybrid_by_year'].get(y, 0.0) for y in years],
         "Consumo desde FV": [consumo_pv.get(y, 0.0) for y in years],
         "Consumo desde BESS": [consumo_bess.get(y, 0.0) for y in years],
         "Pérdidas FV": [best['Losses_by_year'].get(y, 0.0) for y in years],
