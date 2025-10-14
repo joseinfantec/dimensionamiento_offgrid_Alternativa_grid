@@ -191,11 +191,8 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
                 hourly_capture["pv_gen"].append(pv_gen)
             #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
 
-            if y==1 and h < 24:
-                print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", gen_kwh, ". SOC ", soc, ". Gen ", pv_gen)
-            #if y==1 and h < 24:
-            #    print("Consumo desde BESS ", delivered,". Consumo desde PV ", pv_to_load, "Consumo desde GEN ", fuel, ". SOC ", soc, ". Gen ", pv_gen)
-            # limpiar variable local gen_kwh para próxima iteración (evitar reusar)
+            if y==1 and 120 <= h < 144: 
+                print(" Gen ", pv_gen, ". Consumo", load,". Consumo desde PV ", pv_to_load, ".Consumo desde BESS ", delivered, "Consumo desde GEN ", gen_kwh, ". SOC ", soc)
 
 
         soc_end_by_year[y] = soc
@@ -232,8 +229,8 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         #consumo_desde_genset_hybrid[y] = fuel_consumed_year
         #fuel_savings_by_year[y] = fuel_savings_year
 
-        if y < cfg.N_years:
-            soc = min(soc, E_bess_kWh * cfg.bess_capacity_factors[y+1] * cfg.soc_max_frac)
+        #if y < cfg.N_years:
+        #    soc = min(soc, E_bess_kWh * cfg.bess_capacity_factors[y+1] * cfg.soc_max_frac)
        #if cfg.battery_replacement and (y in cfg.battery_replacement):
        #    repl_cost = cfg.battery_replacement[y] * E_bess_kWh
 
@@ -259,7 +256,7 @@ def simulate_operation(PV_kWp, E_bess_kWh, irr_annual, load_annual, cfg: Simulat
         cumulative += annual
         if cumulative >= capex and annual > 0:
             remaining = capex - prev_cum
-            frac = min(max(remaining / annual, 0.0), 1.0)
+            frac = min(max(remaining / annual, 0.00), 1.00)
             payback_year = y - 1 + frac
             break
 
